@@ -6,8 +6,12 @@ export function getImageUrl(image, folder = 'categories') {
     if (typeof image === 'string' && (image.includes('supabase.co') || image.includes('/futuretek-media/'))) {
         filename = image.split('/').pop();
     }
-    if (filename.startsWith('http://') || filename.startsWith('https://')) return filename;
-    return `/api/media/view/${folder}/${filename}`;
+    if (filename.startsWith('http://') || filename.startsWith('https://')) {
+        if (!filename.includes('supabase.co')) return filename;
+        filename = filename.split('/').pop();
+    }
+    const base = config.appUrl ? config.appUrl.replace(/\/$/, '') : '';
+    return `${base}/api/media/view/${folder}/${filename}`;
 }
 
 export function getPdfUrl(pdf, folder = 'products') {
@@ -16,8 +20,12 @@ export function getPdfUrl(pdf, folder = 'products') {
     if (typeof pdf === 'string' && (pdf.includes('supabase.co') || pdf.includes('/futuretek-media/'))) {
         filename = pdf.split('/').pop();
     }
-    if (filename.startsWith('http://') || filename.startsWith('https://')) return filename;
-    return `/api/media/document/${filename}`;
+    if (filename.startsWith('http://') || filename.startsWith('https://')) {
+        if (!filename.includes('supabase.co')) return filename;
+        filename = filename.split('/').pop();
+    }
+    const base = config.appUrl ? config.appUrl.replace(/\/$/, '') : '';
+    return `${base}/api/media/document/${filename}`;
 }
 
 export function serializeCategoryTree(rootCategories, allCategories) {

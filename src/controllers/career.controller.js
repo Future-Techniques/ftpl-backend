@@ -1,3 +1,4 @@
+import { uploadAndOptimizeMedia } from '../helpers/mediaOptimizer.js';
 import { query } from '../config/db.js';
 import { randomUUID } from 'crypto';
 import path from 'path';

@@ -4,16 +4,32 @@ import { supabase, BUCKET_NAME } from '../config/supabase.js';
 const router = Router();
 
 const FOLDERS_TO_SEARCH = [
-  'products',
-  'associates',
   'categories',
-  'services',
+  'products',
   'banners',
+  'associates',
+  'services',
   'concerns',
   'blogs',
   'features',
+  'candidates',
   'pages'
 ];
+
+const MIME_MAP = {
+  webp: 'image/webp',
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  svg: 'image/svg+xml',
+  gif: 'image/gif',
+  pdf: 'application/pdf'
+};
+
+function getMime(filename) {
+  const ext = (filename || '').split('.').pop().toLowerCase();
+  return MIME_MAP[ext] || 'application/octet-stream';
+}
 
 /**
  * Universal safe document/media streamer
@@ -36,22 +52,9 @@ router.get('/document/:filename', async (req, res) => {
       const { data, error } = await supabase.storage.from(BUCKET_NAME).download(fullPath);
       if (!error && data) {
         const buffer = Buffer.from(await data.arrayBuffer());
-        const isPdf = filename.toLowerCase().endsWith('.pdf');
-        const isWebp = filename.toLowerCase().endsWith('.webp');
-        const isPng = filename.toLowerCase().endsWith('.png');
-        const isJpg = filename.toLowerCase().endsWith('.jpg') || filename.toLowerCase().endsWith('.jpeg');
-        const isSvg = filename.toLowerCase().endsWith('.svg');
-
-        let contentType = 'application/octet-stream';
-        if (isPdf) contentType = 'application/pdf';
-        else if (isWebp) contentType = 'image/webp';
-        else if (isPng) contentType = 'image/png';
-        else if (isJpg) contentType = 'image/jpeg';
-        else if (isSvg) contentType = 'image/svg+xml';
-
-        res.setHeader('Content-Type', contentType);
+        res.setHeader('Content-Type', getMime(filename));
         res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
-        res.setHeader('Cache-Control', 'public, max-age=86400');
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
         return res.send(buffer);
       }
     } catch (err) {
@@ -64,8 +67,9 @@ router.get('/document/:filename', async (req, res) => {
     const { data, error } = await supabase.storage.from(BUCKET_NAME).download(filename);
     if (!error && data) {
       const buffer = Buffer.from(await data.arrayBuffer());
-      res.setHeader('Content-Type', filename.endsWith('.pdf') ? 'application/pdf' : 'application/octet-stream');
+      res.setHeader('Content-Type', getMime(filename));
       res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
       return res.send(buffer);
     }
   } catch (err) {
@@ -90,10 +94,9 @@ router.get('/view/:folder/:filename', async (req, res) => {
       return res.redirect(`/api/media/document/${filename}`);
     }
     const buffer = Buffer.from(await data.arrayBuffer());
-    const isPdf = filename.toLowerCase().endsWith('.pdf');
-    res.setHeader('Content-Type', isPdf ? 'application/pdf' : 'image/webp');
+    res.setHeader('Content-Type', getMime(filename));
     res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
-    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
     return res.send(buffer);
   } catch (err) {
     return res.redirect(`/api/media/document/${filename}`);

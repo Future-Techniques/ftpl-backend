@@ -1,3 +1,4 @@
+import { uploadAndOptimizeMedia } from '../helpers/mediaOptimizer.js';
 import { query } from '../config/db.js';
 import { supabase, BUCKET_NAME } from '../config/supabase.js';
 import { getImageUrl } from '../helpers/serializers.js';
@@ -124,25 +125,7 @@ export async function createCategory(req, res, next) {
 
         // Handle file upload if present
         if (req.file) {
-            const ext = req.file.originalname.split('.').pop() || 'webp';
-            const uniqueFilename = `${randomUUID()}.${ext}`;
-            const storagePath = `categories/${uniqueFilename}`;
-
-            const { error: uploadErr } = await supabase.storage
-                .from(BUCKET_NAME)
-                .upload(storagePath, req.file.buffer, {
-                    contentType: req.file.mimetype,
-                    upsert: true
-                });
-
-            if (uploadErr) {
-                return res.status(500).json({
-                    result: 'error',
-                    message: `Failed to upload image to Supabase Storage: ${uploadErr.message}`
-                });
-            }
-
-            imageFilename = uniqueFilename;
+            imageFilename = await uploadAndOptimizeMedia(req.file, 'categories');
         }
 
         const parentCategory = body.parent_category && body.parent_category !== '0' && body.parent_category !== ''
@@ -203,25 +186,7 @@ export async function updateCategory(req, res, next) {
         let imageFilename = prev.image;
 
         if (req.file) {
-            const ext = req.file.originalname.split('.').pop() || 'webp';
-            const uniqueFilename = `${randomUUID()}.${ext}`;
-            const storagePath = `categories/${uniqueFilename}`;
-
-            const { error: uploadErr } = await supabase.storage
-                .from(BUCKET_NAME)
-                .upload(storagePath, req.file.buffer, {
-                    contentType: req.file.mimetype,
-                    upsert: true
-                });
-
-            if (uploadErr) {
-                return res.status(500).json({
-                    result: 'error',
-                    message: `Failed to upload image to Supabase Storage: ${uploadErr.message}`
-                });
-            }
-
-            imageFilename = uniqueFilename;
+            imageFilename = await uploadAndOptimizeMedia(req.file, 'categories');
         } else if (body.image !== undefined) {
             imageFilename = body.image || null;
         }

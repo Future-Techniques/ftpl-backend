@@ -1,3 +1,4 @@
+import { uploadAndOptimizeMedia } from '../helpers/mediaOptimizer.js';
 import { query } from '../config/db.js';
 import { supabase, BUCKET_NAME } from '../config/supabase.js';
 import { getImageUrl } from '../helpers/serializers.js';
@@ -13,24 +14,9 @@ function slugify(text) {
         .replace(/\-\-+/g, '-');
 }
 
-async function uploadFileToSupabase(file, folder = 'banners') {
+async function uploadFileToSupabase(file, folder = 'media') {
     if (!file) return null;
-    const ext = file.originalname.split('.').pop() || 'webp';
-    const uniqueFilename = `${randomUUID()}.${ext}`;
-    const storagePath = `${folder}/${uniqueFilename}`;
-
-    const { error } = await supabase.storage
-        .from(BUCKET_NAME)
-        .upload(storagePath, file.buffer, {
-            contentType: file.mimetype,
-            upsert: true
-        });
-
-    if (error) {
-        throw new Error(`Supabase Storage upload failed: ${error.message}`);
-    }
-
-    return uniqueFilename;
+    return await uploadAndOptimizeMedia(file, folder);
 }
 
 export async function listBanners(req, res, next) {
