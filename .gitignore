@@ -1,0 +1,42 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Diagnostic / Test / Seed / Migration / One-off scripts
+*.sql
+*.sqlite
+scratch/
+scripts/temp/
+test-*.js
+seed-*.js
+migrate-*.js
+*.test.local
+
+# Dependencies
+node_modules/
+
+# Production Builds & Output
+dist/
+build/
+*.zip
+*.tar.gz
+
+# Environment & Secrets (NEVER COMMIT)
+.env
+.env.*
+!.env.example
+
+# Uploaded Media / Runtime Storage (if local)
+uploads/temp/
+public/temp/
+
+# OS & Editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
