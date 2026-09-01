@@ -41,7 +41,7 @@ import { handleStatusResponse } from '../utils/renderStatusPage.js';
 const router = Router();
 
 // Health check / root API status endpoint (exempt from api key)
-router.get(['/', '/health'], handleStatusResponse);
+router.get(['/', '/health', '/ping'], handleStatusResponse);
 
 // Document & Media streaming proxy (hides Supabase storage URLs)
 router.use('/media', mediaRoutes);

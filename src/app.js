@@ -44,8 +44,8 @@ app.use(express.urlencoded({ extended: true }));
 // Serve static images if present
 app.use('/frontend/images', express.static(path.join(__dirname, '../public/frontend/images')));
 
-// Root server check
-app.get('/', handleStatusResponse);
+// Root server health checks
+app.get(['/', '/health', '/ping'], handleStatusResponse);
 
 // API Routes
 app.use('/api', apiRoutes);
