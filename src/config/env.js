@@ -30,8 +30,22 @@ export const config = {
     supabaseServiceKey: process.env.SUPABASE_SERVICE_ROLE_KEY.trim(),
     databaseUrl: process.env.DATABASE_URL.trim(),
     jwtSecret: process.env.JWT_SECRET.trim(),
-    appUrl: process.env.APP_URL || `http://localhost:${port}`,
-    corsOrigins: process.env.CORS_ORIGIN
-        ? process.env.CORS_ORIGIN.split(',').map(s => s.trim())
-        : ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:8000']
+    appUrl: (process.env.APP_URL || `http://localhost:${port}`).trim().replace(/\/$/, ''),
+    corsOrigins: (process.env.CORS_ORIGIN || process.env.ALLOWED_ORIGINS || process.env.FRONTEND_URL || '')
+        ? (process.env.CORS_ORIGIN || process.env.ALLOWED_ORIGINS || process.env.FRONTEND_URL)
+            .replace(/["'\r\n]/g, '')
+            .split(',')
+            .map(s => s.trim().replace(/\/$/, ''))
+            .filter(Boolean)
+        : [
+            'https://futuretechniques.com.np',
+            'https://www.futuretechniques.com.np',
+            'https://ftpl.com.np',
+            'https://www.ftpl.com.np',
+            'https://ftpl-mainfrontend.vercel.app',
+            'https://ftpl-admin.vercel.app',
+            'http://localhost:3000',
+            'http://localhost:5173',
+            'http://localhost:8000'
+        ]
 };
