@@ -8,6 +8,7 @@ import apiRoutes from './routes/index.js';
 import { errorHandler } from './middleware/errorHandler.js';
 
 import { handleStatusResponse } from './utils/renderStatusPage.js';
+import { generateSitemap } from './controllers/sitemap.controller.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -29,6 +30,9 @@ app.use('/frontend/images', express.static(path.join(__dirname, '../public/front
 
 // Root server health checks
 app.get(['/', '/health', '/ping'], handleStatusResponse);
+
+// Root sitemap.xml endpoint (search engines)
+app.get(['/sitemap.xml', '/sitemap'], generateSitemap);
 
 // API Routes
 app.use('/api', apiRoutes);

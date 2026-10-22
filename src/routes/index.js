@@ -36,12 +36,16 @@ import adminSubscriberRoutes from './adminSubscriber.routes.js';
 import adminCleanupRoutes from './adminCleanup.routes.js';
 import mediaRoutes from './media.routes.js';
 
+import sitemapRoutes from './sitemap.routes.js';
 import { handleStatusResponse } from '../utils/renderStatusPage.js';
 
 const router = Router();
 
 // Health check / root API status endpoint (exempt from api key)
 router.get(['/', '/health', '/ping'], handleStatusResponse);
+
+// Public XML Sitemap (exempt from api key for search engine crawlers)
+router.use('/', sitemapRoutes);
 
 // Document & Media streaming proxy (hides Supabase storage URLs)
 router.use('/media', mediaRoutes);
