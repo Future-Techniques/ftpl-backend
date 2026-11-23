@@ -1,4 +1,4 @@
-import { uploadAndOptimizeMedia } from '../helpers/mediaOptimizer.js';
+import { uploadAndOptimizeMedia, deleteStorageMedia } from '../helpers/mediaOptimizer.js';
 import { query } from '../config/db.js';
 import { supabase, BUCKET_NAME } from '../config/supabase.js';
 import { getImageUrl, getPdfUrl } from '../helpers/serializers.js';
@@ -163,13 +163,13 @@ export async function createProduct(req, res, next) {
         // Process uploaded files if available
         if (req.files) {
             if (req.files.image && req.files.image[0]) {
-                mainImage = await uploadFileToSupabase(req.files.image[0]);
+                mainImage = await uploadFileToSupabase(req.files.image[0], 'products');
             }
             if (req.files.benefit_image && req.files.benefit_image[0]) {
-                benefitImage = await uploadFileToSupabase(req.files.benefit_image[0]);
+                benefitImage = await uploadFileToSupabase(req.files.benefit_image[0], 'products');
             }
             if (req.files.catalogue && req.files.catalogue[0]) {
-                cataloguePdf = await uploadFileToSupabase(req.files.catalogue[0]);
+                cataloguePdf = await uploadFileToSupabase(req.files.catalogue[0], 'products');
             }
         }
 
@@ -254,13 +254,16 @@ export async function updateProduct(req, res, next) {
 
         if (req.files) {
             if (req.files.image && req.files.image[0]) {
-                mainImage = await uploadFileToSupabase(req.files.image[0]);
+                if (prev.image) await deleteStorageMedia(`products/${prev.image}`);
+                mainImage = await uploadFileToSupabase(req.files.image[0], 'products');
             }
             if (req.files.benefit_image && req.files.benefit_image[0]) {
-                benefitImage = await uploadFileToSupabase(req.files.benefit_image[0]);
+                if (prev.benefit_image) await deleteStorageMedia(`products/${prev.benefit_image}`);
+                benefitImage = await uploadFileToSupabase(req.files.benefit_image[0], 'products');
             }
             if (req.files.catalogue && req.files.catalogue[0]) {
-                cataloguePdf = await uploadFileToSupabase(req.files.catalogue[0]);
+                if (prev.catalogue) await deleteStorageMedia(`products/${prev.catalogue}`);
+                cataloguePdf = await uploadFileToSupabase(req.files.catalogue[0], 'products');
             }
         }
 

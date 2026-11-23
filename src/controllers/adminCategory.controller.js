@@ -1,4 +1,4 @@
-import { uploadAndOptimizeMedia } from '../helpers/mediaOptimizer.js';
+import { uploadAndOptimizeMedia, deleteStorageMedia } from '../helpers/mediaOptimizer.js';
 import { query } from '../config/db.js';
 import { supabase, BUCKET_NAME } from '../config/supabase.js';
 import { getImageUrl } from '../helpers/serializers.js';
@@ -186,6 +186,7 @@ export async function updateCategory(req, res, next) {
         let imageFilename = prev.image;
 
         if (req.file) {
+            if (prev.image) await deleteStorageMedia(`categories/${prev.image}`);
             imageFilename = await uploadAndOptimizeMedia(req.file, 'categories');
         } else if (body.image !== undefined) {
             imageFilename = body.image || null;

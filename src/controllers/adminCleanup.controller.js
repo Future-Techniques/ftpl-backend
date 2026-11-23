@@ -1,4 +1,17 @@
 import { query } from '../config/db.js';
+import { deleteStorageMedia } from '../helpers/mediaOptimizer.js';
+
+// Table to storage folder & media columns mapping
+const TABLE_MEDIA_COLUMNS = {
+    products: { folder: 'products', cols: ['image', 'benefit_image', 'catalogue'] },
+    categories: { folder: 'categories', cols: ['image'] },
+    banners: { folder: 'banners', cols: ['image', 'icon'] },
+    associates: { folder: 'associates', cols: ['image', 'pdf_file'] },
+    blogs: { folder: 'blogs', cols: ['image'] },
+    services: { folder: 'services', cols: ['image'] },
+    features: { folder: 'features', cols: ['image'] },
+    concerns: { folder: 'concerns', cols: ['image'] }
+};
 
 // Whitelist of cleanable tables with primary search columns and labels
 const CLEANABLE_ENTITIES = {
@@ -290,6 +303,28 @@ export async function bulkDeleteRecords(req, res, next) {
             if (ids.length === 0) continue;
 
             try {
+                // Clean up any associated media from Supabase storage before deleting rows
+                if (TABLE_MEDIA_COLUMNS[tbl]) {
+                    const { folder, cols } = TABLE_MEDIA_COLUMNS[tbl];
+                    try {
+                        const { rows } = await query(
+                            `SELECT ${cols.join(', ')} FROM public."${tbl}" WHERE id = ANY($1::text[])`,
+                            [ids]
+                        );
+                        const pathsToDelete = [];
+                        rows.forEach(r => {
+                            cols.forEach(c => {
+                                if (r[c]) pathsToDelete.push(`${folder}/${r[c]}`);
+                            });
+                        });
+                        if (pathsToDelete.length > 0) {
+                            await deleteStorageMedia(pathsToDelete);
+                        }
+                    } catch (mediaErr) {
+                        console.warn(`[CLEANUP MEDIA WARNING on ${tbl}]:`, mediaErr.message);
+                    }
+                }
+
                 // If table is categories, nullify or check products
                 if (tbl === 'categories') {
                     await query(`UPDATE public."products" SET category_id = NULL WHERE category_id = ANY($1::text[])`, [ids]);

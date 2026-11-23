@@ -4,8 +4,27 @@ import path from 'path';
 import { supabase, BUCKET_NAME } from '../config/supabase.js';
 
 /**
+ * Context-aware compression presets tailored to where each asset is displayed.
+ * Prevents saving massive 2000px images for small partner logos, avatars, or thumbnails.
+ */
+export const FOLDER_PRESETS = {
+  banners: { width: 1600, height: 900, quality: 76 },
+  products: { width: 1000, height: 1000, quality: 78 },
+  categories: { width: 800, height: 600, quality: 78 },
+  associates: { width: 400, height: 250, quality: 80 }, // Partner logos (Thermax, Alfa Laval)
+  testimonials: { width: 250, height: 250, quality: 80 }, // Client avatars
+  services: { width: 800, height: 600, quality: 78 },
+  concerns: { width: 500, height: 400, quality: 80 },
+  blogs: { width: 1000, height: 600, quality: 78 },
+  features: { width: 500, height: 500, quality: 80 },
+  candidates: { width: 400, height: 500, quality: 80 },
+  pages: { width: 1200, height: 800, quality: 78 },
+  misc: { width: 1200, height: 1200, quality: 78 }
+};
+
+/**
  * Compresses and converts any uploaded image to optimized WebP before saving to Supabase Storage.
- * PDFs and SVGs are stored with clean UUID filenames.
+ * Uses context-aware presets to drastically reduce file payload and bandwidth egress.
  *
  * @param {Express.Multer.File} file - Multer in-memory file
  * @param {string} folder - Target bucket folder (e.g. 'categories', 'products', 'banners', 'associates', etc.)
@@ -27,19 +46,19 @@ export async function uploadAndOptimizeMedia(file, folder = 'misc') {
   let contentType = file.mimetype;
 
   if (isImage) {
-    // Compress and convert to modern WebP format
+    const preset = FOLDER_PRESETS[folder] || FOLDER_PRESETS.misc;
     finalFilename = `${randomUUID()}.webp`;
     contentType = 'image/webp';
 
     uploadBuffer = await sharp(file.buffer)
       .resize({
-        width: 2000,
-        height: 2000,
+        width: preset.width,
+        height: preset.height,
         fit: 'inside',
         withoutEnlargement: true,
       })
       .webp({
-        quality: 82,
+        quality: preset.quality,
         effort: 4,
       })
       .toBuffer();
@@ -69,3 +88,28 @@ export async function uploadAndOptimizeMedia(file, folder = 'misc') {
 
   return finalFilename;
 }
+
+/**
+ * Safely removes one or more media files from Supabase Storage.
+ * Prevents orphan files from accumulating and exceeding the 1 GB storage limit.
+ *
+ * @param {string|string[]} filePaths - Relative storage paths (e.g. 'products/abc.webp')
+ */
+export async function deleteStorageMedia(filePaths) {
+  if (!filePaths) return;
+  const paths = Array.isArray(filePaths)
+    ? filePaths.filter(Boolean)
+    : [filePaths].filter(Boolean);
+
+  if (paths.length === 0) return;
+
+  try {
+    const { error } = await supabase.storage.from(BUCKET_NAME).remove(paths);
+    if (error) {
+      console.warn('[STORAGE CLEANUP WARNING]', error.message);
+    }
+  } catch (err) {
+    console.warn('[STORAGE CLEANUP EXCEPTION]', err.message);
+  }
+}
+

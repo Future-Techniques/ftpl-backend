@@ -1,4 +1,4 @@
-import { uploadAndOptimizeMedia } from '../helpers/mediaOptimizer.js';
+import { uploadAndOptimizeMedia, deleteStorageMedia } from '../helpers/mediaOptimizer.js';
 import { query } from '../config/db.js';
 import { supabase, BUCKET_NAME } from '../config/supabase.js';
 import { getImageUrl } from '../helpers/serializers.js';
@@ -157,9 +157,11 @@ export async function updateBanner(req, res, next) {
 
         if (req.files) {
             if (req.files.image && req.files.image[0]) {
+                if (prev.image) await deleteStorageMedia(`banners/${prev.image}`);
                 imageFilename = await uploadFileToSupabase(req.files.image[0], 'banners');
             }
             if (req.files.icon && req.files.icon[0]) {
+                if (prev.icon) await deleteStorageMedia(`banners/${prev.icon}`);
                 iconFilename = await uploadFileToSupabase(req.files.icon[0], 'banners');
             }
         } else {

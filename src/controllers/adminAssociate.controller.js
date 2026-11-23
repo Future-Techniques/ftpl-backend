@@ -1,4 +1,4 @@
-import { uploadAndOptimizeMedia } from '../helpers/mediaOptimizer.js';
+import { uploadAndOptimizeMedia, deleteStorageMedia } from '../helpers/mediaOptimizer.js';
 import { query } from '../config/db.js';
 import { supabase, BUCKET_NAME } from '../config/supabase.js';
 import { getImageUrl, getPdfUrl } from '../helpers/serializers.js';
@@ -350,9 +350,11 @@ export async function updateAssociate(req, res, next) {
 
         if (req.files) {
             if (req.files.image && req.files.image[0]) {
+                if (prev.image) await deleteStorageMedia(`associates/${prev.image}`);
                 imageFilename = await uploadFileToSupabase(req.files.image[0], 'associates');
             }
             if (req.files.pdf_file && req.files.pdf_file[0]) {
+                if (prev.pdf_file) await deleteStorageMedia(`associates/${prev.pdf_file}`);
                 pdfFilename = await uploadFileToSupabase(req.files.pdf_file[0], 'associates');
             }
         } else {
