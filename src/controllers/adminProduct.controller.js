@@ -374,7 +374,7 @@ export async function deleteProduct(req, res, next) {
         const { id } = req.params;
 
         const { rows: existing } = await query(
-            `SELECT image, benefit_image, catalogue FROM public.products WHERE id = $1 LIMIT 1`,
+            `SELECT image, benefit_image, catalogue, additionals FROM public.products WHERE id = $1 LIMIT 1`,
             [id]
         );
 
@@ -387,9 +387,24 @@ export async function deleteProduct(req, res, next) {
             .filter(Boolean)
             .map(filename => `products/${filename}`);
 
+        if (product.additionals) {
+            try {
+                const parsed = typeof product.additionals === 'string' ? JSON.parse(product.additionals) : product.additionals;
+                if (Array.isArray(parsed)) {
+                    parsed.forEach(item => {
+                        const addImg = item.raw_image || item.image;
+                        if (addImg) {
+                            const fn = addImg.split('/').pop().split('?')[0];
+                            filesToDelete.push(`products/${fn}`);
+                        }
+                    });
+                }
+            } catch {}
+        }
+
         if (filesToDelete.length > 0) {
             try {
-                await supabase.storage.from(BUCKET_NAME).remove(filesToDelete);
+                await deleteStorageMedia(filesToDelete);
             } catch (storageErr) {
                 console.warn('Storage cleanup warning on product delete:', storageErr.message);
             }

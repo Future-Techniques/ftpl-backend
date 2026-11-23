@@ -2,7 +2,8 @@ import { Router } from 'express';
 import {
     getCleanupSummary,
     searchCleanupData,
-    bulkDeleteRecords
+    bulkDeleteRecords,
+    cleanupOrphansHandler
 } from '../controllers/adminCleanup.controller.js';
 import { adminAuthMiddleware } from '../middleware/adminAuth.js';
 
@@ -14,5 +15,6 @@ router.use(adminAuthMiddleware);
 router.get('/summary', getCleanupSummary);
 router.get('/search', searchCleanupData);
 router.post('/delete', bulkDeleteRecords);
+router.post('/cleanup-orphans', cleanupOrphansHandler);
 
 export default router;

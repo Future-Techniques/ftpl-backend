@@ -1,5 +1,5 @@
 import { query } from '../config/db.js';
-import { deleteStorageMedia } from '../helpers/mediaOptimizer.js';
+import { deleteStorageMedia, cleanSupabaseOrphans } from '../helpers/mediaOptimizer.js';
 
 // Table to storage folder & media columns mapping
 const TABLE_MEDIA_COLUMNS = {
@@ -347,6 +347,24 @@ export async function bulkDeleteRecords(req, res, next) {
             message: `Successfully deleted ${totalDeleted} test record(s)`,
             totalDeleted,
             breakdown: details
+        });
+    } catch (err) {
+        next(err);
+    }
+}
+
+/**
+ * POST /api/upload/cleanup-orphans
+ * or POST /api/admin/cleanup/cleanup-orphans
+ * Audits all storage files and purges orphans
+ */
+export async function cleanupOrphansHandler(req, res, next) {
+    try {
+        const report = await cleanSupabaseOrphans();
+        return res.json({
+            result: 'success',
+            message: `Orphan cleanup complete: purged ${report.purgedCount} orphaned file(s)`,
+            data: report
         });
     } catch (err) {
         next(err);

@@ -34,6 +34,8 @@ import adminContactRoutes from './adminContact.routes.js';
 import adminCandidateRoutes from './adminCandidate.routes.js';
 import adminSubscriberRoutes from './adminSubscriber.routes.js';
 import adminCleanupRoutes from './adminCleanup.routes.js';
+import { cleanupOrphansHandler } from '../controllers/adminCleanup.controller.js';
+import { adminAuthMiddleware } from '../middleware/adminAuth.js';
 import mediaRoutes from './media.routes.js';
 
 import sitemapRoutes from './sitemap.routes.js';
@@ -67,6 +69,7 @@ router.use('/admin/contacts', adminContactRoutes);
 router.use('/admin/candidates', adminCandidateRoutes);
 router.use('/admin/subscribers', adminSubscriberRoutes);
 router.use('/admin/cleanup', adminCleanupRoutes);
+router.post('/upload/cleanup-orphans', adminAuthMiddleware, cleanupOrphansHandler);
 
 // Protect public frontend /api routes with ApiKeyMiddleware
 router.use(apiKeyMiddleware);

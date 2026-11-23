@@ -2,20 +2,25 @@ import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import crypto from 'crypto';
 import { supabase, BUCKET_NAME } from '../config/supabase.js';
 
 const router = Router();
 
-// Local disk cache directory in OS temporary space (persistent across requests in the container)
-const CACHE_DIR = path.join(os.tmpdir(), 'ftpl-media-cache');
+// Local disk cache directory in OS temporary space (persistent across requests on Render container SSD)
+export const CACHE_DIR = process.env.MEDIA_CACHE_DIR || path.join(os.tmpdir(), 'ftpl-media-cache');
 if (!fs.existsSync(CACHE_DIR)) {
-  fs.mkdirSync(CACHE_DIR, { recursive: true });
+  try {
+    fs.mkdirSync(CACHE_DIR, { recursive: true });
+  } catch (err) {
+    console.warn('[MediaRoutes] Could not create cache directory:', err.message);
+  }
 }
 
 // In-memory registry to remember which folder owns each filename (avoids multi-folder scan penalty)
-const folderLocationCache = new Map();
+export const folderLocationCache = new Map();
 
-const FOLDERS_TO_SEARCH = [
+export const FOLDERS_TO_SEARCH = [
   'categories',
   'products',
   'banners',
@@ -35,7 +40,8 @@ const MIME_MAP = {
   jpeg: 'image/jpeg',
   svg: 'image/svg+xml',
   gif: 'image/gif',
-  pdf: 'application/pdf'
+  pdf: 'application/pdf',
+  ico: 'image/x-icon'
 };
 
 function getMime(filename) {
@@ -43,7 +49,15 @@ function getMime(filename) {
   return MIME_MAP[ext] || 'application/octet-stream';
 }
 
-function getFromDiskCache(filename) {
+function generateETag(bufferOrStats) {
+  if (Buffer.isBuffer(bufferOrStats)) {
+    const hash = crypto.createHash('md5').update(bufferOrStats).digest('hex');
+    return `"${bufferOrStats.length.toString(16)}-${hash.substring(0, 16)}"`;
+  }
+  return `"${bufferOrStats.size.toString(16)}-${Math.floor(bufferOrStats.mtimeMs).toString(16)}"`;
+}
+
+export function getFromDiskCache(filename) {
   const cachePath = path.join(CACHE_DIR, filename);
   if (fs.existsSync(cachePath)) {
     try {
@@ -55,7 +69,7 @@ function getFromDiskCache(filename) {
   return null;
 }
 
-function saveToDiskCache(filename, buffer) {
+export function saveToDiskCache(filename, buffer) {
   const cachePath = path.join(CACHE_DIR, filename);
   try {
     fs.writeFileSync(cachePath, buffer);
@@ -64,8 +78,17 @@ function saveToDiskCache(filename, buffer) {
   }
 }
 
+export function removeFromDiskCache(filename) {
+  const cachePath = path.join(CACHE_DIR, filename);
+  if (fs.existsSync(cachePath)) {
+    try {
+      fs.unlinkSync(cachePath);
+    } catch {}
+  }
+}
+
 function serveMediaResponse(req, res, filename, buffer, cacheHit = false) {
-  const etag = `"${filename}"`;
+  const etag = generateETag(buffer);
   res.setHeader('Content-Type', getMime(filename));
   res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
   res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
@@ -81,96 +104,79 @@ function serveMediaResponse(req, res, filename, buffer, cacheHit = false) {
 }
 
 /**
- * Universal safe document/media streamer
- * Hides Supabase bucket URLs completely from the client
- * URL: /api/media/document/:filename
- */
-router.get('/document/:filename', async (req, res) => {
-  const { filename } = req.params;
-  const targetFolder = req.query.folder;
-
-  if (!filename || filename === 'null' || filename === 'undefined') {
-    return res.status(404).send('Document not found');
-  }
-
-  // 1. Check local disk cache first (bypasses Supabase completely)
-  const cached = getFromDiskCache(filename);
-  if (cached) {
-    return serveMediaResponse(req, res, filename, cached, true);
-  }
-
-  // 2. Determine search priority: target folder -> known cached folder -> rest
-  const knownFolder = folderLocationCache.get(filename);
-  const searchList = targetFolder
-    ? [targetFolder, ...FOLDERS_TO_SEARCH]
-    : knownFolder
-    ? [knownFolder, ...FOLDERS_TO_SEARCH]
-    : FOLDERS_TO_SEARCH;
-
-  for (const folder of searchList) {
-    const fullPath = `${folder}/${filename}`;
-    try {
-      const { data, error } = await supabase.storage.from(BUCKET_NAME).download(fullPath);
-      if (!error && data) {
-        const buffer = Buffer.from(await data.arrayBuffer());
-        saveToDiskCache(filename, buffer);
-        folderLocationCache.set(filename, folder);
-        return serveMediaResponse(req, res, filename, buffer, false);
-      }
-    } catch {
-      // continue searching other folders
-    }
-  }
-
-  // 3. Fallback: try root level of the bucket
-  try {
-    const { data, error } = await supabase.storage.from(BUCKET_NAME).download(filename);
-    if (!error && data) {
-      const buffer = Buffer.from(await data.arrayBuffer());
-      saveToDiskCache(filename, buffer);
-      return serveMediaResponse(req, res, filename, buffer, false);
-    }
-  } catch {
-    // ignore
-  }
-
-  return res.status(404).send(`Document "${filename}" was not found in media storage.`);
-});
-
-/**
- * Direct folder media view
+ * Direct folder / bucket media view
  * URL: /api/media/view/:folder/:filename
  */
 router.get('/view/:folder/:filename', async (req, res) => {
   const { folder, filename } = req.params;
+  return handleMediaServe(req, res, folder, filename);
+});
 
-  if (!filename || filename === 'null' || filename === 'undefined') {
+/**
+ * Universal safe document/media streamer
+ * URL: /api/media/document/:filename
+ */
+router.get('/document/:filename', async (req, res) => {
+  const { filename } = req.params;
+  const targetFolder = req.query.folder || folderLocationCache.get(filename) || 'products';
+  return handleMediaServe(req, res, targetFolder, filename, true);
+});
+
+/**
+ * Standard Supabase Storage Egress Pipeline
+ * URL: /api/media/:bucket/:filename
+ */
+router.get('/:bucket/:filename', async (req, res) => {
+  const { bucket, filename } = req.params;
+  return handleMediaServe(req, res, bucket, filename);
+});
+
+async function handleMediaServe(req, res, folderOrBucket, filename, allowFallback = false) {
+  if (!filename || filename === 'null' || filename === 'undefined' || filename.includes('..')) {
     return res.status(404).send('Media not found');
   }
 
-  // 1. Check local disk cache first (bypasses Supabase completely)
+  // 1. FAST PATH: Check local SSD disk cache (Render /tmp/)
   const cached = getFromDiskCache(filename);
   if (cached) {
     return serveMediaResponse(req, res, filename, cached, true);
   }
 
-  // 2. Fetch from Supabase Storage once and save to local disk
-  const fullPath = `${folder}/${filename}`;
-  try {
-    const { data, error } = await supabase.storage.from(BUCKET_NAME).download(fullPath);
-    if (error || !data) {
-      // Fallback search other folders via document streamer
-      return res.redirect(`/api/media/document/${filename}`);
-    }
+  // 2. Determine target storage path
+  const bucket = BUCKET_NAME || 'futuretek-media';
+  const targetFolder = folderOrBucket && folderOrBucket !== bucket ? folderOrBucket : (folderLocationCache.get(filename) || 'products');
+  const fullPath = `${targetFolder}/${filename}`;
 
-    const buffer = Buffer.from(await data.arrayBuffer());
-    saveToDiskCache(filename, buffer);
-    folderLocationCache.set(filename, folder);
-    return serveMediaResponse(req, res, filename, buffer, false);
-  } catch {
-    return res.redirect(`/api/media/document/${filename}`);
+  try {
+    const { data, error } = await supabase.storage.from(bucket).download(fullPath);
+    if (!error && data) {
+      const buffer = Buffer.from(await data.arrayBuffer());
+      saveToDiskCache(filename, buffer);
+      folderLocationCache.set(filename, targetFolder);
+      return serveMediaResponse(req, res, filename, buffer, false);
+    }
+  } catch (err) {
+    // Continue to fallback if allowed
   }
-});
+
+  // If strict folder lookup failed and allowFallback is true, try known location or root once
+  if (allowFallback) {
+    const known = folderLocationCache.get(filename);
+    const candidateFolders = known ? [known] : FOLDERS_TO_SEARCH.filter(f => f !== targetFolder);
+    for (const f of candidateFolders.slice(0, 3)) { // Limit to at most 3 to prevent sequential leaks
+      try {
+        const { data, error } = await supabase.storage.from(bucket).download(`${f}/${filename}`);
+        if (!error && data) {
+          const buffer = Buffer.from(await data.arrayBuffer());
+          saveToDiskCache(filename, buffer);
+          folderLocationCache.set(filename, f);
+          return serveMediaResponse(req, res, filename, buffer, false);
+        }
+      } catch {}
+    }
+  }
+
+  return res.status(404).send(`Media "${filename}" not found in storage.`);
+}
 
 export default router;
-

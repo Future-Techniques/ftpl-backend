@@ -26,15 +26,19 @@ async function startServer() {
 }
 
 function startDatabaseKeepAlive() {
-    const INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
-    setInterval(async () => {
+    const ping = async () => {
         try {
             await pool.query('SELECT 1 as keep_alive, NOW() as current_time');
             console.log(`[AUTO KEEPALIVE] Supabase heartbeat successful at ${new Date().toISOString()}`);
         } catch (err) {
             console.warn('[AUTO KEEPALIVE WARNING] Failed to ping database:', err.message);
         }
-    }, INTERVAL_MS);
+    };
+    // Run initial heartbeat ping on startup
+    ping();
+    const INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
+    const timer = setInterval(ping, INTERVAL_MS);
+    if (timer.unref) timer.unref();
 }
 
 startServer();
